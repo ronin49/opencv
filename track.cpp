@@ -1,80 +1,59 @@
 #include <opencv2/opencv.hpp>
-#include <iostream>
-
-using namespace cv;
-using namespace std;
+#include <opencv2/highgui.hpp>
+#include <opencv2/video/tracking.hpp>
 
 int main() {
-    // Read the first frame from the video
-    VideoCapture cap("video.mp4");
-    if (!cap.isOpened()) {
-        cout << "Error: Failed to open the video file." << endl;
-        return -1;
-    }
 
-    Mat frame;
-    cap >> frame;
+	// Create video capturing object
+	// 0 opens default camera, otherwise filename as argument
+	cv::VideoCapture video(0);
 
-    // Define the initial tracking window
-    Rect track_window(200, 100, 100, 100);
+	// Check that video is opened
+	if (!video.isOpened()) return -1;
 
-    // Convert the first frame to HSV color space
-    Mat hsv;
-    cvtColor(frame, hsv, COLOR_BGR2HSV);
+	// For saving the frame
+	cv::Mat frame;
 
-    // Mask out the region of interest (ROI) for tracking
-    Mat mask;
-    inRange(hsv, Scalar(0, 60, 32), Scalar(180, 255, 255), mask);
-    Mat roi(mask, track_window);
+	// Get video resolution
+	int frameWidth = video.get(cv::CAP_PROP_FRAME_WIDTH);
+	int frameHeigth = video.get(cv::CAP_PROP_FRAME_HEIGHT);
 
-    // Calculate the histogram of the ROI
-    Mat hist;
-    int hbins = 30, sbins = 32;
-    int histSize[] = {hbins, sbins};
-    float hranges[] = {0, 180};
-    float sranges[] = {0, 256};
-    const float* ranges[] = {hranges, sranges};
-    int channels[] = {0, 1};
-    calcHist(&hsv, 1, channels, roi, hist, 2, histSize, ranges, true, false);
+	// Create video writer object
+	cv::VideoWriter output("output.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frameWidth, frameHeigth));
 
-    // Normalize the histogram
-    normalize(hist, hist, 0, 255, NORM_MINMAX);
+	// Create tracker, select region-of-interest (ROI) and initialize the tracker
+	cv::Ptr<cv::Tracker> tracker = cv::TrackerKCF::create();
+	video.read(frame);
+	cv::Rect2d trackingBox = cv::selectROI(frame, false);
+	tracker->init(frame, trackingBox);
 
-    // Term criteria for MeanShift algorithm
-    TermCriteria term_crit(TermCriteria::EPS | TermCriteria::COUNT, 10, 1);
+	// Loop through available frames
+	while (video.read(frame)) {
 
-    // Perform object tracking using MeanShift
-    while (true) {
-        // Read a new frame from the video
-        cap >> frame;
-        if (frame.empty())
-            break;
+		// Update the tracker and draw the rectangle around target if update was successful
+		if (tracker->update(frame, trackingBox)) {
+			cv::rectangle(frame, trackingBox, cv::Scalar(255, 0, 0), 2, 8);
+		}
 
-        // Convert the frame to HSV color space
-        cvtColor(frame, hsv, COLOR_BGR2HSV);
+		// Display the frame
+		cv::imshow("Video feed", frame);
 
-        // Calculate the back projection of the histogram
-        Mat backproj;
-        calcBackProject(&hsv, 1, channels, hist, backproj, ranges, 1, true);
+		// Write video frame to output
+		output.write(frame);
 
-        // Apply MeanShift to track the object
-        RotatedRect track_box = meanShift(backproj, track_window, term_crit);
+		// For breaking the loop
+		if (cv::waitKey(25) >= 0) break;
 
-        // Draw the tracked object on the frame
-        ellipse(frame, track_box, Scalar(0, 255, 0), 2);
+	} // end while (video.read(frame))
 
-        // Display the frame with the tracked object
-        imshow("Object Tracking", frame);
+	  // Release video capture and writer
+	output.release();
+	video.release();
 
-        // Wait for the 'Esc' key to exit
-        if (waitKey(30) == 27)
-            break;
-    }
+	// Destroy all windows
+	cv::destroyAllWindows();
 
-    // Release the video capture object and close all windows
-    cap.release();
-    destroyAllWindows();
+	return 0;
 
-    return 0;
 }
 

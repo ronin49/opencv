@@ -1,0 +1,19 @@
+sudo apt-get install v4l2loopback-dkms
+
+
+sudo modprobe v4l2loopback
+
+
+sudo v4l2-ctl --set-fmt-video=width=640,height=480,pixelformat=YUYV --set-ctrl video_bitrate=2000000 --device /dev/video2 --set-fmt-out=width=640,height=480,pixelformat=YUYV --set-ctrl horizontal_flip=0,vertical_flip=0 --set-ctrl brightness=128,contrast=32,saturation=64,sharpness=40
+
+
+ffmpeg -re -i input.mp4 -f v4l2 /dev/video2
+
+
+ffmpeg -f x11grab -r 30 -s 1280x720 -i :0.0+100,200 -f v4l2 /dev/video2
+
+xwininfo -name "Window Title"
+
+
+ffmpeg -f x11grab -r 30 -s 1280x720 -i :0.0+100,200 -f v4l2 /dev/video2
+
