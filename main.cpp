@@ -1,46 +1,63 @@
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/highgui.hpp>
+#include <iostream>
+#include <stdio.h>
 #include "sobol.h"
-
-int main() {
-    // Initialize the camera capture object
-    cv::VideoCapture cap(0);  // Use 0 for the default camera (usually the built-in webcam)
-
-    // Check if the camera is opened successfully
+ 
+using namespace cv;
+using namespace std;
+ 
+int main(int, char**)
+{
+    Mat src;
+    // use default camera as video source
+    VideoCapture cap(0);
+    // check if we succeeded
     if (!cap.isOpened()) {
-        std::cout << "Error: Unable to open the camera." << std::endl;
+        cerr << "ERROR! Unable to open camera\n";
         return -1;
     }
-
-    // Main loop to read frames from the camera and display them
-    while (true) {
-        cv::Mat frame;
-        
-        // Capture frame-by-frame
-        cap >> frame;
-        
-        // Check if the frame is read correctly
-        if (frame.empty()) {
-            std::cout << "Error: Unable to read frame." << std::endl;
-            break;
-        }
-        
-	cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
-	sobol(frame,frame);
-        // Display the frame
-        cv::imshow("Camera Feed", frame);
-        
-        // Check for the 'ESC' key press to exit the loop
-        if (cv::waitKey(1) == 27) {
-            break;
-        }
+    // get one frame from camera to know frame size and type
+    cap >> src;
+    // check if we succeeded
+    if (src.empty()) {
+        cerr << "ERROR! blank frame grabbed\n";
+        return -1;
     }
-
-    // Release the camera capture object
-    cap.release();
-    
-    // Close all OpenCV windows
-    cv::destroyAllWindows();
-
+    bool isColor = (src.type() == CV_8UC3);
+ 
+    //--- INITIALIZE VIDEOWRITER
+    VideoWriter writer;
+    int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');  // select desired codec (must be available at runtime)
+    double fps = 25.0;                          // framerate of the created video stream
+    string filename = "./live.avi";             // name of the output video file
+    writer.open(filename, codec, fps, src.size(), isColor);
+    // check if we succeeded
+    if (!writer.isOpened()) {
+        cerr << "Could not open the output video file for write\n";
+        return -1;
+    }
+ 
+    //--- GRAB AND WRITE LOOP
+    cout << "Writing videofile: " << filename << endl
+         << "Press any key to terminate" << endl;
+    for (;;)
+    {
+        // check if we succeeded
+        if (!cap.read(src)) {
+            cerr << "ERROR! blank frame grabbed\n";
+            break;
+        }
+	sobol(src,src);
+        // encode the frame into the videofile stream
+        writer.write(src);
+        // show live and wait for a key with timeout long enough to show images
+        imshow("Live", src);
+	waitKey();
+        if (waitKey(5) >= 0)
+            break;
+    }
+    // the videofile will be closed and released automatically in VideoWriter destructor
     return 0;
 }
-
