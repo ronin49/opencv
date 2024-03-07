@@ -1,63 +1,61 @@
-#include <opencv2/core.hpp>
-#include <opencv2/videoio.hpp>
-#include <opencv2/highgui.hpp>
-#include <iostream>
-#include <stdio.h>
-#include "sobol.h"
- 
-using namespace cv;
-using namespace std;
- 
-int main(int, char**)
-{
-    Mat src;
-    // use default camera as video source
-    VideoCapture cap(0);
-    // check if we succeeded
+#include <opencv2/opencv.hpp>
+#include <obs-module.h> // Include OBS headers for the virtual camera functionality
+
+int main() {
+    // Open the camera
+    cv::VideoCapture cap(0); // Change the parameter to the appropriate camera index if necessary
+
     if (!cap.isOpened()) {
-        cerr << "ERROR! Unable to open camera\n";
+        std::cerr << "Failed to open camera" << std::endl;
         return -1;
     }
-    // get one frame from camera to know frame size and type
-    cap >> src;
-    // check if we succeeded
-    if (src.empty()) {
-        cerr << "ERROR! blank frame grabbed\n";
-        return -1;
-    }
-    bool isColor = (src.type() == CV_8UC3);
- 
-    //--- INITIALIZE VIDEOWRITER
-    VideoWriter writer;
-    int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');  // select desired codec (must be available at runtime)
-    double fps = 25.0;                          // framerate of the created video stream
-    string filename = "./live.avi";             // name of the output video file
-    writer.open(filename, codec, fps, src.size(), isColor);
-    // check if we succeeded
-    if (!writer.isOpened()) {
-        cerr << "Could not open the output video file for write\n";
-        return -1;
-    }
- 
-    //--- GRAB AND WRITE LOOP
-    cout << "Writing videofile: " << filename << endl
-         << "Press any key to terminate" << endl;
-    for (;;)
-    {
-        // check if we succeeded
-        if (!cap.read(src)) {
-            cerr << "ERROR! blank frame grabbed\n";
+
+    // Create a virtual camera (assuming OBS Virtual Camera)
+    obs_module_load();
+
+    obs_output_t *virtualCam = obs_output_create("obs-virtualcam", "OBS Virtual Camera", nullptr, nullptr);
+
+    // Set up the virtual camera resolution
+    obs_data_t *settings = obs_output_get_settings(virtualCam);
+    obs_data_set_int(settings, "width", 640); // Adjust width as needed
+    obs_data_set_int(settings, "height", 480); // Adjust height as needed
+    obs_data_set_int(settings, "fps_num", 30); // Adjust fps as needed
+    obs_output_update(virtualCam, settings);
+
+    // Main loop
+    cv::Mat frame;
+    while (true) {
+        cap >> frame;
+
+        // If frame is empty, break the loop
+        if (frame.empty()) {
+            std::cerr << "Failed to capture frame" << std::endl;
             break;
         }
-	sobol(src,src);
-        // encode the frame into the videofile stream
-        writer.write(src);
-        // show live and wait for a key with timeout long enough to show images
-        imshow("Live", src);
-	waitKey();
-        if (waitKey(5) >= 0)
+
+        // Process the frame if necessary
+        // e.g., cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
+
+        // Send the frame to the virtual camera
+        // OBS virtual camera requires BGR format
+        obs_output_video_frame(virtualCam, frame.data, frame.step[0], frame.cols, frame.rows);
+
+        // Show the frame (optional)
+        cv::imshow("Frame", frame);
+
+        // Break the loop if 'q' is pressed
+        if (cv::waitKey(1) == 'q') {
             break;
+        }
     }
-    // the videofile will be closed and released automatically in VideoWriter destructor
+
+    // Release resources
+    obs_output_release(virtualCam);
+    obs_module_unload();
+
+    cap.release();
+    cv::destroyAllWindows();
+
     return 0;
 }
+
