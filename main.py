@@ -1,3 +1,4 @@
+import numpy as np
 # This scripts uses OpenCV to capture webcam output, applies a filter,
 # and sends it to the virtual camera.
 # It also shows how to use BGR as pixel format.
@@ -15,7 +16,7 @@ args = parser.parse_args()
 
 # Set up webcam capture.
 vc = cv2.VideoCapture(args.camera)
-
+cap = cv2.VideoCapture('porn.mp4')
 if not vc.isOpened():
     raise RuntimeError('Could not open video source')
 
@@ -47,10 +48,15 @@ with pyvirtualcam.Camera(width, height, fps_out, fmt=PixelFormat.BGR, print_fps=
             raise RuntimeError('Error fetching frame')
 
         if args.filter == "shake":
+            pass
             dx = 15 - cam.frames_sent % 5
             c1, c2 = channels[cam.frames_sent % 3]
             frame[:,:-dx,c1] = frame[:,dx:,c1]
             frame[:,dx:,c2] = frame[:,:-dx,c2]
+
+        ret, fire = cap.read()
+        fire = cv2.resize(fire,(1280,720))
+        cam.send(cv2.addWeighted(fire, 0.6, frame, 0.4, 0.0))
                 
         frame = cv2.GaussianBlur(frame, (3, 3), 0)
 
@@ -75,7 +81,7 @@ with pyvirtualcam.Camera(width, height, fps_out, fmt=PixelFormat.BGR, print_fps=
         frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
 
         # Send to virtual cam.
-        cam.send(frame)
+        #cam.send(frame)
 
         # Wait until it's time for the next frame.
         cam.sleep_until_next_frame()
